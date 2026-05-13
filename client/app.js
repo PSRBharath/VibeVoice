@@ -1,44 +1,77 @@
 const button = document.getElementById("connect")
 
 let ws
-let mediaRecorder
 
-button.onclick = async () => {
+button.onclick = () => {
 
     ws = new WebSocket("ws://localhost:3000")
 
-    ws.onopen = async () => {
+    ws.onopen = () => {
 
         console.log("Connected to server")
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true
-        })
-
-        mediaRecorder = new MediaRecorder(stream)
-
-        mediaRecorder.start(250)
-
-        mediaRecorder.ondataavailable = async (event) => {
-
-            if (event.data.size > 0) {
-
-                const arrayBuffer = await event.data.arrayBuffer()
-
-                ws.send(arrayBuffer)
-
-                console.log("Audio chunk sent")
-
-            }
-
-        }
+        startRecognition()
 
     }
 
     ws.onmessage = (event) => {
 
-        console.log("Server:", event.data)
+        const data = JSON.parse(event.data)
+
+        console.log("AI:", data.reply)
+
+        speak(data.reply)
 
     }
+
+}
+
+function startRecognition() {
+
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition
+
+    const recognition = new SpeechRecognition()
+
+    recognition.continuous = true
+
+    recognition.interimResults = false
+
+    recognition.lang = "en-US"
+
+    recognition.onresult = (event) => {
+
+        const transcript =
+            event.results[event.results.length - 1][0].transcript
+
+        console.log("You:", transcript)
+
+        ws.send(
+            JSON.stringify({
+                text: transcript
+            })
+        )
+
+    }
+
+    recognition.start()
+
+}
+
+function speak(text) {
+
+    speechSynthesis.cancel()
+
+    const utterance =
+        new SpeechSynthesisUtterance(text)
+
+    utterance.rate = 1
+
+    utterance.pitch = 1
+
+    utterance.volume = 1
+
+    speechSynthesis.speak(utterance)
 
 }
