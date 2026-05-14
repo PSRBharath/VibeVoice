@@ -44,24 +44,59 @@ function startRecognition() {
 
     recognition.lang = "en-US"
 
-    recognition.onresult = (event) => {
+recognition.onresult = (event) => {
 
-        if (isSpeaking) return
+    const result =
+        event.results[event.results.length - 1]
 
-        if (isProcessing) return
+    const transcript =
+        result[0].transcript
 
-        const transcript =
-            event.results[event.results.length - 1][0].transcript
+   
 
-        if (!transcript) return
+    if (!transcript) return
 
-        const text = transcript.trim()
+    const text = transcript.trim()
 
-        if (text.length < 2) return
+    if (text.length < 3) return
 
-        console.log("You:", text)
+    // IGNORE VERY LOW CONFIDENCE
 
-        isProcessing = true
+   
+
+}
+
+    // IGNORE DUPLICATE REPETITIONS
+
+    if (window.lastTranscript === text) {
+
+        return
+
+    }
+
+    window.lastTranscript = text
+
+    console.log("You:", text)
+
+    // INTERRUPT AI IF USER SPEAKS
+
+    if (isSpeaking) {
+
+        console.log("User interrupted AI")
+
+        speechSynthesis.cancel()
+
+        isSpeaking = false
+
+    }
+
+    if (isProcessing) return
+
+    isProcessing = true
+
+    // CHECK WEBSOCKET STATE
+
+    if (ws.readyState === WebSocket.OPEN) {
 
         ws.send(
             JSON.stringify({
@@ -69,7 +104,15 @@ function startRecognition() {
             })
         )
 
+    } else {
+
+        console.log("WebSocket disconnected")
+
+        isProcessing = false
+
     }
+
+}
 
     recognition.onerror = (event) => {
 
@@ -95,8 +138,6 @@ function speak(text) {
 
     isSpeaking = true
 
-    recognition.stop()
-
     speechSynthesis.cancel()
 
     const utterance =
@@ -115,8 +156,6 @@ function speak(text) {
         isSpeaking = false
 
         isProcessing = false
-
-        recognition.start()
 
     }
 
