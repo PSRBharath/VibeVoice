@@ -1,6 +1,10 @@
 const button = document.getElementById("connect")
 
 let ws
+let recognition
+
+let isSpeaking = false
+let isProcessing = false
 
 button.onclick = () => {
 
@@ -32,7 +36,7 @@ function startRecognition() {
         window.SpeechRecognition ||
         window.webkitSpeechRecognition
 
-    const recognition = new SpeechRecognition()
+    recognition = new SpeechRecognition()
 
     recognition.continuous = true
 
@@ -42,16 +46,44 @@ function startRecognition() {
 
     recognition.onresult = (event) => {
 
+        if (isSpeaking) return
+
+        if (isProcessing) return
+
         const transcript =
             event.results[event.results.length - 1][0].transcript
 
-        console.log("You:", transcript)
+        if (!transcript) return
+
+        const text = transcript.trim()
+
+        if (text.length < 2) return
+
+        console.log("You:", text)
+
+        isProcessing = true
 
         ws.send(
             JSON.stringify({
-                text: transcript
+                text
             })
         )
+
+    }
+
+    recognition.onerror = (event) => {
+
+        console.log("Speech recognition error:", event.error)
+
+    }
+
+    recognition.onend = () => {
+
+        if (!isSpeaking) {
+
+            recognition.start()
+
+        }
 
     }
 
@@ -60,6 +92,10 @@ function startRecognition() {
 }
 
 function speak(text) {
+
+    isSpeaking = true
+
+    recognition.stop()
 
     speechSynthesis.cancel()
 
@@ -71,6 +107,18 @@ function speak(text) {
     utterance.pitch = 1
 
     utterance.volume = 1
+
+    utterance.lang = "en-US"
+
+    utterance.onend = () => {
+
+        isSpeaking = false
+
+        isProcessing = false
+
+        recognition.start()
+
+    }
 
     speechSynthesis.speak(utterance)
 
