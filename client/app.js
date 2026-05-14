@@ -1,142 +1,109 @@
-const button = document.getElementById("connect")
+const button =
+    document.getElementById("connect")
 
-let ws
-let recognition
+let mediaRecorder
 
-let isSpeaking = false
-let isProcessing = false
+let audioChunks = []
 
-button.onclick = () => {
+let isRecording = false
 
-    ws = new WebSocket("ws://localhost:3000")
+button.onclick = async () => {
 
-    ws.onopen = () => {
+    if (isRecording) return
 
-        console.log("Connected to server")
+    isRecording = true
 
-        startRecognition()
+    const stream =
+        await navigator.mediaDevices.getUserMedia({
+            audio: true
+        })
 
-    }
+    mediaRecorder =
+        new MediaRecorder(stream)
 
-    ws.onmessage = (event) => {
+    audioChunks = []
 
-        const data = JSON.parse(event.data)
+    mediaRecorder.ondataavailable = (event) => {
 
-        console.log("AI:", data.reply)
-
-        speak(data.reply)
-
-    }
-
-}
-
-function startRecognition() {
-
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition
-
-    recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-
-    recognition.interimResults = false
-
-    recognition.lang = "en-US"
-
-recognition.onresult = (event) => {
-
-    const result =
-        event.results[event.results.length - 1]
-
-    const transcript =
-        result[0].transcript
-
-   
-
-    if (!transcript) return
-
-    const text = transcript.trim()
-
-    if (text.length < 3) return
-
-    // IGNORE VERY LOW CONFIDENCE
-
-   
-
-}
-
-    // IGNORE DUPLICATE REPETITIONS
-
-    if (window.lastTranscript === text) {
-
-        return
+        audioChunks.push(event.data)
 
     }
 
-    window.lastTranscript = text
+    mediaRecorder.onstop = async () => {
 
-    console.log("You:", text)
+        console.log("Recording stopped")
 
-    // INTERRUPT AI IF USER SPEAKS
-
-    if (isSpeaking) {
-
-        console.log("User interrupted AI")
-
-        speechSynthesis.cancel()
-
-        isSpeaking = false
-
-    }
-
-    if (isProcessing) return
-
-    isProcessing = true
-
-    // CHECK WEBSOCKET STATE
-
-    if (ws.readyState === WebSocket.OPEN) {
-
-        ws.send(
-            JSON.stringify({
-                text
+        const audioBlob =
+            new Blob(audioChunks, {
+                type: "audio/webm"
             })
+
+        const formData =
+            new FormData()
+
+        formData.append(
+            "audio",
+            audioBlob,
+            "recording.webm"
         )
 
-    } else {
+        try {
 
-        console.log("WebSocket disconnected")
+            console.log("Uploading audio...")
 
-        isProcessing = false
+            const response =
+                await fetch(
+                    "http://localhost:3000/transcribe",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                )
 
-    }
+            const data =
+                await response.json()
 
-}
+            console.log(
+                "Transcript:",
+                data.text
+            )
 
-    recognition.onerror = (event) => {
+            console.log(
+                "AI:",
+                data.reply
+            )
 
-        console.log("Speech recognition error:", event.error)
+            speak(data.reply)
 
-    }
+        } catch (error) {
 
-    recognition.onend = () => {
-
-        if (!isSpeaking) {
-
-            recognition.start()
+            console.log(error)
 
         }
 
+        isRecording = false
+
     }
 
-    recognition.start()
+    console.log("Recording started")
+
+    mediaRecorder.start()
+
+    setTimeout(() => {
+
+        mediaRecorder.stop()
+
+    }, 5000)
 
 }
 
-function speak(text) {
+/*
+-----------------------------------
+TTS
+-----------------------------------
+*/
 
-    isSpeaking = true
+function speak(text) {
 
     speechSynthesis.cancel()
 
@@ -151,14 +118,8 @@ function speak(text) {
 
     utterance.lang = "en-US"
 
-    utterance.onend = () => {
-
-        isSpeaking = false
-
-        isProcessing = false
-
-    }
-
-    speechSynthesis.speak(utterance)
+    speechSynthesis.speak(
+        utterance
+    )
 
 }
