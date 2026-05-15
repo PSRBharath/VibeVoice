@@ -17,6 +17,7 @@ app.use(cors())
 const server = http.createServer(app)
 
 const wss = new WebSocket.Server({ server })
+let conversationHistory = []
 
 const upload = multer({
     dest: "uploads/"
@@ -41,6 +42,8 @@ fs.renameSync(
     req.file.path,
     inputPath
 )
+const wavPath =
+    req.file.path + ".wav"
 
         const outputBase =
     path.join(
@@ -48,14 +51,40 @@ fs.renameSync(
         path.parse(inputPath).name
     )
 
-const command =
-    `C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/build/bin/Release/whisper-cli.exe ` +
-    `-m C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/models/ggml-base.en.bin ` +
-    `-f "${inputPath}" ` +
-    `-otxt ` +
-    `-of "${outputBase}"`
+const ffmpegCommand =
+    `"D:/ffmpeg-master-latest-win64-gpl-shared/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe" ` +
+    `-i "${inputPath}" ` +
+    `-ar 16000 ` +
+    `-ac 1 ` +
+    `"${wavPath}" -y`
 
-        exec(command, (error, stdout, stderr) => {
+exec(ffmpegCommand, (ffmpegError) => {
+
+    if (ffmpegError) {
+
+        console.log(
+            "FFmpeg Error:",
+            ffmpegError
+        )
+
+        return res
+            .status(500)
+            .send(
+                "FFmpeg conversion failed"
+            )
+
+    }
+
+    const whisperCommand =
+        `C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/build/bin/Release/whisper-cli.exe ` +
+        `-m C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/models/ggml-base.en.bin ` +
+        `-f "${wavPath}" ` +
+        `-otxt ` +
+        `-of "${outputBase}"`
+
+    exec(
+        whisperCommand,
+        (error, stdout, stderr) => {
 
             if (error) {
 
@@ -103,19 +132,22 @@ const command =
                                         "openai/gpt-oss-120b:free",
 
                                     messages: [
-                                        {
-                                            role: "system",
+    {
+        role: "system",
 
-                                            content:
-                                                "You are a realtime conversational voice assistant. Keep responses short and natural."
-                                        },
-                                        {
-                                            role: "user",
+        content:
+            "You are a realtime conversational voice assistant. Keep responses short and natural."
+    },
 
-                                            content:
-                                                transcript
-                                        }
-                                    ]
+    ...conversationHistory,
+
+    {
+        role: "user",
+
+        content:
+            transcript
+    }
+]
                                 },
                                 {
                                     headers: {
@@ -139,6 +171,24 @@ const command =
                             "AI:",
                             reply
                         )
+                        conversationHistory.push({
+    role: "user",
+    content: transcript
+})
+
+conversationHistory.push({
+    role: "assistant",
+    content: reply
+})
+
+if (
+    conversationHistory.length > 20
+) {
+
+    conversationHistory =
+        conversationHistory.slice(-20)
+
+}
 
                         res.json({
                             text: transcript,
@@ -180,7 +230,11 @@ wss.on("connection", (ws) => {
 
         console.log("Client disconnected")
 
-    })
+                    }
+            )
+
+        }
+    )
 
 })
 

@@ -1,3 +1,7 @@
+let isSpeaking = false
+
+let interruptStream = null
+
 const button =
     document.getElementById("connect")
 
@@ -7,8 +11,15 @@ let audioChunks = []
 
 let isRecording = false
 
-button.onclick = async () => {
+button.onclick = () => {
 
+    startInterruptionDetection()
+    startRecording()
+
+}
+
+async function startRecording() {
+    let hasSpoken = false
     if (isRecording) return
 
     isRecording = true
@@ -60,20 +71,39 @@ button.onclick = async () => {
                     }
                 )
 
-            const data =
-                await response.json()
+           const data =
+    await response.json()
 
-            console.log(
-                "Transcript:",
-                data.text
-            )
+console.log(
+    "Transcript:",
+    data.text
+)
 
-            console.log(
-                "AI:",
-                data.reply
-            )
+const transcript =
+    data.text
 
-            speak(data.reply)
+if (!transcript.trim()) {
+
+    console.log(
+        "Empty transcript"
+    )
+
+    isRecording = false
+
+    startRecording()
+
+    return
+
+}
+
+console.log(
+    "AI:",
+    data.reply
+)
+
+speak(data.reply)
+
+            
 
         } catch (error) {
 
@@ -89,11 +119,111 @@ button.onclick = async () => {
 
     mediaRecorder.start()
 
-    setTimeout(() => {
+   const audioContext =
+    new AudioContext()
 
-        mediaRecorder.stop()
+const source =
+    audioContext.createMediaStreamSource(stream)
 
-    }, 5000)
+const analyser =
+    audioContext.createAnalyser()
+
+source.connect(analyser)
+
+const dataArray =
+    new Uint8Array(
+        analyser.fftSize
+    )
+
+let silenceStart =
+    null
+
+const silenceThreshold =
+    5
+
+const silenceDelay =
+    2500
+
+function checkSilence() {
+
+    analyser.getByteTimeDomainData(
+        dataArray
+    )
+
+    let sum = 0
+
+    for (
+        let i = 0;
+        i < dataArray.length;
+        i++
+    ) {
+
+        sum += Math.abs(
+            dataArray[i] - 128
+        )
+
+    }
+
+    const average =
+        sum / dataArray.length
+        console.log(average)
+
+        if (average > 5) {
+
+    hasSpoken = true
+
+}
+    if (average < silenceThreshold) {
+
+        if (!silenceStart) {
+
+            silenceStart = Date.now()
+
+        }
+
+        const silenceDuration =
+            Date.now() - silenceStart
+
+        if (
+            silenceDuration >
+            silenceDelay
+        ) {
+
+            console.log(
+                "Silence detected"
+            )
+
+            if (hasSpoken) {
+
+    mediaRecorder.stop()
+
+} else {
+
+    console.log(
+        "No speech detected"
+    )
+
+    silenceStart = null
+
+}
+
+            return
+
+        }
+
+    } else {
+
+        silenceStart = null
+
+    }
+
+    requestAnimationFrame(
+        checkSilence
+    )
+
+}
+
+checkSilence()
 
 }
 
@@ -104,7 +234,7 @@ TTS
 */
 
 function speak(text) {
-
+    isSpeaking = true
     speechSynthesis.cancel()
 
     const utterance =
@@ -118,8 +248,100 @@ function speak(text) {
 
     utterance.lang = "en-US"
 
+    utterance.onend = () => {
+
+    isSpeaking = false
+
+    startRecording()
+
+}
+
     speechSynthesis.speak(
         utterance
     )
+
+}
+
+async function startInterruptionDetection() {
+
+    interruptStream =
+        await navigator.mediaDevices.getUserMedia({
+            audio: true
+        })
+
+    const audioContext =
+        new AudioContext()
+
+    const source =
+        audioContext.createMediaStreamSource(
+            interruptStream
+        )
+
+    const analyser =
+        audioContext.createAnalyser()
+
+    source.connect(analyser)
+
+    const dataArray =
+        new Uint8Array(
+            analyser.fftSize
+        )
+
+    function detectSpeech() {
+
+        if (!isSpeaking) {
+
+    requestAnimationFrame(
+        detectSpeech
+    )
+
+    return
+
+}
+
+        analyser.getByteTimeDomainData(
+            dataArray
+        )
+
+        let sum = 0
+
+        for (
+            let i = 0;
+            i < dataArray.length;
+            i++
+        ) {
+
+            sum += Math.abs(
+                dataArray[i] - 128
+            )
+
+        }
+
+        const average =
+            sum / dataArray.length
+
+        if (average > 5) {
+
+            console.log(
+                "User interrupted AI"
+            )
+
+            speechSynthesis.cancel()
+
+            isSpeaking = false
+
+            startRecording()
+
+            return
+
+        }
+
+        requestAnimationFrame(
+            detectSpeech
+        )
+
+    }
+
+    detectSpeech()
 
 }
