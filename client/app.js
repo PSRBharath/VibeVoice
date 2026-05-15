@@ -1,5 +1,11 @@
-let isSpeaking = false
+import {
+    MicVAD
+} from
+"https://cdn.jsdelivr.net/npm/@ricky0123/vad-web/+esm"
 
+let vad = null
+let isSpeaking = false
+let hasSpoken = false
 let interruptStream = null
 
 const button =
@@ -10,24 +16,85 @@ let mediaRecorder
 let audioChunks = []
 
 let isRecording = false
+async function setupVAD() {
 
-button.onclick = () => {
+    vad = await MicVAD.new({
 
-    startInterruptionDetection()
+        baseAssetPath:
+            "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@latest/dist/",
+
+        onnxWASMBasePath:
+            "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/",
+
+        onSpeechStart: () => {
+
+    console.log(
+        "ML Speech started"
+    )
+
+    hasSpoken = true
+
+    if (isSpeaking) {
+
+        console.log(
+            "ML interruption"
+        )
+
+        speechSynthesis.cancel()
+
+        isSpeaking = false
+
+        if (!isRecording) {
+
+            startRecording()
+
+        }
+
+    }
+
+},
+
+        onSpeechEnd: () => {
+
+            console.log(
+                "ML Speech ended"
+            )
+
+        }
+
+    })
+
+    vad.start()
+
+}
+
+button.onclick = async () => {
+
+    await setupVAD()
     startRecording()
 
 }
 
 async function startRecording() {
-    let hasSpoken = false
+    
     if (isRecording) return
 
     isRecording = true
 
     const stream =
-        await navigator.mediaDevices.getUserMedia({
-            audio: true
-        })
+    await navigator.mediaDevices.getUserMedia({
+
+        audio: {
+
+            echoCancellation: true,
+
+            noiseSuppression: true,
+
+            autoGainControl: true
+
+        }
+
+    })
 
     mediaRecorder =
         new MediaRecorder(stream)
@@ -37,6 +104,8 @@ async function startRecording() {
     mediaRecorder.ondataavailable = (event) => {
 
         audioChunks.push(event.data)
+
+
 
     }
 
@@ -71,8 +140,25 @@ async function startRecording() {
                     }
                 )
 
-           const data =
-    await response.json()
+          if (!response.ok) {
+
+    const errorText =
+        await response.text()
+
+    console.log(
+        errorText
+    )
+
+    isRecording = false
+
+    startRecording()
+
+    return
+
+}
+
+const data =
+    await response.json()   
 
 console.log(
     "Transcript:",
@@ -166,7 +252,7 @@ function checkSilence() {
 
     const average =
         sum / dataArray.length
-        console.log(average)
+       // console.log(average)
 
         if (average > 5) {
 
@@ -197,13 +283,17 @@ function checkSilence() {
 
     mediaRecorder.stop()
 
-} else {
+    } else {
 
     console.log(
         "No speech detected"
     )
 
-    silenceStart = null
+    isRecording = false
+
+    startRecording()
+
+    return
 
 }
 
@@ -262,86 +352,3 @@ function speak(text) {
 
 }
 
-async function startInterruptionDetection() {
-
-    interruptStream =
-        await navigator.mediaDevices.getUserMedia({
-            audio: true
-        })
-
-    const audioContext =
-        new AudioContext()
-
-    const source =
-        audioContext.createMediaStreamSource(
-            interruptStream
-        )
-
-    const analyser =
-        audioContext.createAnalyser()
-
-    source.connect(analyser)
-
-    const dataArray =
-        new Uint8Array(
-            analyser.fftSize
-        )
-
-    function detectSpeech() {
-
-        if (!isSpeaking) {
-
-    requestAnimationFrame(
-        detectSpeech
-    )
-
-    return
-
-}
-
-        analyser.getByteTimeDomainData(
-            dataArray
-        )
-
-        let sum = 0
-
-        for (
-            let i = 0;
-            i < dataArray.length;
-            i++
-        ) {
-
-            sum += Math.abs(
-                dataArray[i] - 128
-            )
-
-        }
-
-        const average =
-            sum / dataArray.length
-
-        if (average > 5) {
-
-            console.log(
-                "User interrupted AI"
-            )
-
-            speechSynthesis.cancel()
-
-            isSpeaking = false
-
-            startRecording()
-
-            return
-
-        }
-
-        requestAnimationFrame(
-            detectSpeech
-        )
-
-    }
-
-    detectSpeech()
-
-}

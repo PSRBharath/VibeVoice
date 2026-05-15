@@ -129,7 +129,7 @@ exec(ffmpegCommand, (ffmpegError) => {
                                 "https://openrouter.ai/api/v1/chat/completions",
                                 {
                                     model:
-                                        "openai/gpt-oss-120b:free",
+                                        "openai/gpt-oss-20b:free",
 
                                     messages: [
     {
