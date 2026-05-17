@@ -4,3 +4,7 @@ recording.webm
 uploads
 *.wav
 *.txt
+venv/
+server/audio/
+__pycache__/
+*.wav
