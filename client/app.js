@@ -5,8 +5,13 @@ import {
 
 let vad = null
 let isSpeaking = false
-let hasSpoken = false
+let currentAudio = null
 let interruptStream = null
+let state = "IDLE"
+let speechEndTimeout = null
+let recordingStartTime = null
+let speechEndTime = null
+let isProcessing = false
 
 const button =
     document.getElementById("connect")
@@ -16,6 +21,7 @@ let mediaRecorder
 let audioChunks = []
 
 let isRecording = false
+
 async function setupVAD() {
 
     vad = await MicVAD.new({
@@ -28,37 +34,70 @@ async function setupVAD() {
 
         onSpeechStart: () => {
 
-    console.log(
-        "ML Speech started"
-    )
+            console.log(
+                "ML Speech started"
+            )
 
-    hasSpoken = true
+            if (isSpeaking) {
 
-    if (isSpeaking) {
+                console.log(
+                    "ML interruption"
+                )
 
-        console.log(
-            "ML interruption"
-        )
+                if (currentAudio) {
 
-        speechSynthesis.cancel()
+                    state =
+                        "INTERRUPT_PENDING"
 
-        isSpeaking = false
+                    currentAudio.pause()
 
-        if (!isRecording) {
+                }
 
-            startRecording()
+            }
 
-        }
-
-    }
-
-},
+        },
 
         onSpeechEnd: () => {
 
             console.log(
                 "ML Speech ended"
             )
+
+            clearTimeout(
+                speechEndTimeout
+            )
+
+            speechEndTimeout =
+            setTimeout(() => {
+
+                if (
+                    state ===
+                    "INTERRUPT_PENDING"
+                ) {
+
+                    isSpeaking = false
+
+                    state = "IDLE"
+
+                    startRecording()
+
+                    return
+
+                }
+
+                if (
+
+                    mediaRecorder &&
+                    isRecording
+
+                ) {
+                    speechEndTime =
+    Date.now()
+                    mediaRecorder.stop()
+
+                }
+
+            }, 1200)
 
         }
 
@@ -71,15 +110,32 @@ async function setupVAD() {
 button.onclick = async () => {
 
     await setupVAD()
+
     startRecording()
 
 }
 
 async function startRecording() {
-    
+
+    if (
+
+        state === "LISTENING" ||
+        state === "PROCESSING" ||
+        state === "SPEAKING"
+
+    ) {
+
+        return
+
+    }
+
     if (isRecording) return
 
+    recordingStartTime =
+    Date.now()
     isRecording = true
+
+    state = "LISTENING"
 
     const stream =
     await navigator.mediaDevices.getUserMedia({
@@ -105,215 +161,169 @@ async function startRecording() {
 
         audioChunks.push(event.data)
 
-
-
     }
 
     mediaRecorder.onstop = async () => {
 
-        console.log("Recording stopped")
+    state = "PROCESSING"
 
-        const audioBlob =
-            new Blob(audioChunks, {
-                type: "audio/webm"
-            })
+    if (isProcessing) {
 
-        const formData =
-            new FormData()
-
-        formData.append(
-            "audio",
-            audioBlob,
-            "recording.webm"
+        console.log(
+            "Already processing"
         )
 
-        try {
+        return
 
-            console.log("Uploading audio...")
+    }
 
-            const response =
-                await fetch(
-                    "http://localhost:3000/transcribe",
-                    {
-                        method: "POST",
-                        body: formData
-                    }
-                )
-
-          if (!response.ok) {
-
-    const errorText =
-        await response.text()
+    isProcessing = true
 
     console.log(
-        errorText
+        "Recording stopped"
     )
 
-    isRecording = false
-
-    startRecording()
-
-    return
-
-}
-
-const data =
-    await response.json()   
-
-console.log(
-    "Transcript:",
-    data.text
-)
-
-const transcript =
-    data.text
-
-if (!transcript.trim()) {
+    const duration =
+        Date.now() -
+        recordingStartTime
 
     console.log(
-        "Empty transcript"
+        "Duration:",
+        duration
     )
 
-    isRecording = false
+    if (duration < 700) {
 
-    startRecording()
-
-    return
-
-}
-
-console.log(
-    "AI:",
-    data.reply
-)
-
-speak(data.reply)
-
-            
-
-        } catch (error) {
-
-            console.log(error)
-
-        }
+        console.log(
+            "Recording too short"
+        )
 
         isRecording = false
 
+        isProcessing = false
+
+        state = "IDLE"
+
+        startRecording()
+
+        return
+
     }
 
-    console.log("Recording started")
+    const audioBlob =
+        new Blob(audioChunks, {
+            type: "audio/webm"
+        })
 
-    mediaRecorder.start()
+    const formData =
+        new FormData()
 
-   const audioContext =
-    new AudioContext()
-
-const source =
-    audioContext.createMediaStreamSource(stream)
-
-const analyser =
-    audioContext.createAnalyser()
-
-source.connect(analyser)
-
-const dataArray =
-    new Uint8Array(
-        analyser.fftSize
+    formData.append(
+        "audio",
+        audioBlob,
+        "recording.webm"
     )
 
-let silenceStart =
-    null
+    try {
 
-const silenceThreshold =
-    5
-
-const silenceDelay =
-    2500
-
-function checkSilence() {
-
-    analyser.getByteTimeDomainData(
-        dataArray
-    )
-
-    let sum = 0
-
-    for (
-        let i = 0;
-        i < dataArray.length;
-        i++
-    ) {
-
-        sum += Math.abs(
-            dataArray[i] - 128
+        console.log(
+            "Uploading audio..."
         )
 
-    }
+            const sttStart =
+    Date.now()
 
-    const average =
-        sum / dataArray.length
-       // console.log(average)
-
-        if (average > 5) {
-
-    hasSpoken = true
-
-}
-    if (average < silenceThreshold) {
-
-        if (!silenceStart) {
-
-            silenceStart = Date.now()
-
-        }
-
-        const silenceDuration =
-            Date.now() - silenceStart
-
-        if (
-            silenceDuration >
-            silenceDelay
-        ) {
-
-            console.log(
-                "Silence detected"
+        const response =
+            await fetch(
+                "http://localhost:3000/transcribe",
+                {
+                    method: "POST",
+                    body: formData
+                }
             )
 
-            if (hasSpoken) {
+        if (!response.ok) {
 
-    mediaRecorder.stop()
+            const errorText =
+                await response.text()
 
-    } else {
+            console.log(
+                errorText
+            )
 
-    console.log(
-        "No speech detected"
-    )
+            isRecording = false
 
-    isRecording = false
+            isProcessing = false
 
-    startRecording()
-
-    return
-
-}
+            startRecording()
 
             return
 
         }
 
-    } else {
+        const data =
+            await response.json()
+         const sttEnd =
+    Date.now()
 
-        silenceStart = null
+console.log(
+    "STT Latency:",
+    sttEnd - sttStart,
+    "ms"
+)
+        console.log(
+            "Transcript:",
+            data.text
+        )
+
+        const transcript =
+            data.text
+
+        if (!transcript.trim()) {
+
+            console.log(
+                "Empty transcript"
+            )
+
+            isRecording = false
+
+            isProcessing = false
+
+            startRecording()
+
+            return
+
+        }
+
+        console.log(
+            "AI:",
+            data.reply
+        )
+        console.log(
+    "Total Delay:",
+    Date.now() -
+    speechEndTime,
+    "ms"
+)
+        speak(data.reply)
+
+    } catch (error) {
+
+        console.log(error)
 
     }
 
-    requestAnimationFrame(
-        checkSilence
-    )
+    isRecording = false
+
+    isProcessing = false
 
 }
 
-checkSilence()
+    console.log(
+        "Recording started"
+    )
+
+    mediaRecorder.start()
 
 }
 
@@ -323,32 +333,74 @@ TTS
 -----------------------------------
 */
 
-function speak(text) {
+async function speak(text) {
+
+    state = "SPEAKING"
+
     isSpeaking = true
-    speechSynthesis.cancel()
 
-    const utterance =
-        new SpeechSynthesisUtterance(text)
+    try {
 
-    utterance.rate = 1
+        const response =
+        await fetch(
 
-    utterance.pitch = 1
+            "http://localhost:8000/tts",
 
-    utterance.volume = 1
+            {
 
-    utterance.lang = "en-US"
+                method: "POST",
 
-    utterance.onend = () => {
+                headers: {
 
-    isSpeaking = false
+                    "Content-Type":
+                    "application/json"
 
-    startRecording()
+                },
+
+                body: JSON.stringify({
+
+                    text: text
+
+                })
+
+            }
+
+        )
+
+        const data =
+        await response.json()
+       
+        if (currentAudio) {
+
+            currentAudio.pause()
+
+        }
+
+        currentAudio =
+        new Audio(
+            data.audio_url
+        )
+
+        currentAudio.onended = () => {
+
+            isSpeaking = false
+
+            state = "IDLE"
+
+            startRecording()
+
+        }
+
+        await currentAudio.play()
+
+    } catch (error) {
+
+        console.log(error)
+
+        isSpeaking = false
+
+        startRecording()
+
+    }
 
 }
-
-    speechSynthesis.speak(
-        utterance
-    )
-
-}
-
