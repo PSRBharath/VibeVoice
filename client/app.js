@@ -9,6 +9,7 @@ let currentAudio = null
 let interruptStream = null
 let state = "IDLE"
 let speechEndTimeout = null
+let recordingWatchdog = null
 let recordingStartTime = null
 let speechEndTime = null
 let isProcessing = false
@@ -166,7 +167,9 @@ async function startRecording() {
     mediaRecorder.onstop = async () => {
 
     state = "PROCESSING"
-
+        clearTimeout(
+    recordingWatchdog
+)
     if (isProcessing) {
 
         console.log(
@@ -324,6 +327,23 @@ console.log(
     )
 
     mediaRecorder.start()
+    recordingWatchdog =
+setTimeout(() => {
+
+    if (
+        mediaRecorder &&
+        isRecording
+    ) {
+
+        console.log(
+            "Watchdog forced stop"
+        )
+
+        mediaRecorder.stop()
+
+    }
+
+}, 15000)
 
 }
 
@@ -335,9 +355,7 @@ TTS
 
 async function speak(text) {
 
-    state = "SPEAKING"
-
-    isSpeaking = true
+    
 
     try {
 
@@ -392,6 +410,9 @@ async function speak(text) {
         }
 
         await currentAudio.play()
+        state = "SPEAKING"
+
+    isSpeaking = true
 
     } catch (error) {
 
