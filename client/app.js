@@ -3,8 +3,13 @@ import {
 } from
 "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web/+esm"
 
+let audioQueue = []
+
+let isPlayingQueue =
+    false
 let vad = null
 let isSpeaking = false
+let playbackGeneration = 0
 let currentAudio = null
 let interruptStream = null
 let state = "IDLE"
@@ -35,6 +40,14 @@ async function setupVAD() {
 
         onSpeechStart: () => {
 
+                if (
+    state ===
+    "PROCESSING"
+) {
+
+    return
+
+}
             console.log(
                 "ML Speech started"
             )
@@ -47,19 +60,35 @@ async function setupVAD() {
 
                 if (currentAudio) {
 
-                    state =
-                        "INTERRUPT_PENDING"
+    state =
+        "INTERRUPT_PENDING"
 
-                    currentAudio.pause()
+    currentAudio.pause()
 
-                }
+    currentAudio.currentTime = 0
 
+}
+
+audioQueue = []
+isSpeaking = false
+
+state = "INTERRUPT_PENDING"
+
+currentAudio = null
+playbackGeneration++
             }
 
         },
 
         onSpeechEnd: () => {
+            if (
+    state ===
+    "PROCESSING"
+) {
 
+    return
+
+}
             console.log(
                 "ML Speech ended"
             )
@@ -359,6 +388,10 @@ async function speak(text) {
 
     try {
 
+        const sentences =
+text.match(
+    /[^.!?]+[.!?]+/g
+) || [text] 
         const response =
         await fetch(
 
@@ -374,7 +407,7 @@ async function speak(text) {
                     "application/json"
 
                 },
-
+                
                 body: JSON.stringify({
 
                     text: text
@@ -394,26 +427,11 @@ async function speak(text) {
 
         }
 
-        currentAudio =
-        new Audio(
-            data.audio_url
-        )
+        audioQueue.push(
+    data.audio_url
+)
 
-        currentAudio.onended = () => {
-
-            isSpeaking = false
-
-            state = "IDLE"
-
-            startRecording()
-
-        }
-
-        await currentAudio.play()
-        state = "SPEAKING"
-
-    isSpeaking = true
-
+playQueue()
     } catch (error) {
 
         console.log(error)
@@ -423,5 +441,99 @@ async function speak(text) {
         startRecording()
 
     }
+
+}
+
+async function playQueue() {
+
+    if (
+        isPlayingQueue
+    ) {
+
+        return
+
+    }
+
+    isPlayingQueue =
+    true
+    const generation =
+playbackGeneration
+
+    while (
+        audioQueue.length > 0
+    ) {
+        if (
+    generation !==
+    playbackGeneration
+) {
+
+    break
+
+}
+
+        const audioUrl =
+        audioQueue.shift()
+
+        currentAudio =
+        new Audio(audioUrl)
+
+        try {
+
+            if (
+    !currentAudio
+) {
+
+    break
+
+}
+
+state =
+"SPEAKING"
+
+isSpeaking =
+true
+
+await currentAudio.play()
+
+        } catch (error) {
+
+            console.log(error)
+
+        }
+
+        await new Promise(
+    (resolve) => {
+
+        if (!currentAudio) {
+
+            resolve()
+
+            return
+
+        }
+
+        currentAudio.onended =
+        () => {
+
+            resolve()
+
+        }
+
+    }
+)
+        
+
+    }
+
+    isPlayingQueue =
+    false
+
+    isSpeaking =
+    false
+
+    state =
+    "IDLE"
+
+    startRecording()
 
 }
