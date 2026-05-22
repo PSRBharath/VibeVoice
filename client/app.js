@@ -11,9 +11,12 @@ let vad = null
 let isSpeaking = false
 let playbackGeneration = 0
 let currentAudio = null
+let firstAudioPlayed =
+false
 let interruptStream = null
 let state = "IDLE"
 let speechEndTimeout = null
+let interruptTimeout = null
 let recordingWatchdog = null
 let recordingStartTime = null
 let speechEndTime = null
@@ -52,31 +55,48 @@ async function setupVAD() {
                 "ML Speech started"
             )
 
-            if (isSpeaking) {
+           if (isSpeaking) {
 
-                console.log(
-                    "ML interruption"
-                )
+    clearTimeout(
+        interruptTimeout
+    )
 
-                if (currentAudio) {
+    interruptTimeout =
+    setTimeout(() => {
 
-    state =
+        console.log(
+            "ML interruption"
+        )
+
+        if (
+            currentAudio
+        ) {
+
+            state =
+            "INTERRUPT_PENDING"
+
+            currentAudio.pause()
+
+            currentAudio.currentTime = 0
+
+        }
+
+        audioQueue = []
+
+        isSpeaking =
+        false
+
+        state =
         "INTERRUPT_PENDING"
 
-    currentAudio.pause()
+        currentAudio =
+        null
 
-    currentAudio.currentTime = 0
+        playbackGeneration++
+
+    }, 700)
 
 }
-
-audioQueue = []
-isSpeaking = false
-
-state = "INTERRUPT_PENDING"
-
-currentAudio = null
-playbackGeneration++
-            }
 
         },
 
@@ -384,6 +404,11 @@ TTS
 
 async function speak(text) {
 
+    firstAudioPlayed =
+false   
+let playbackStarted =
+false
+
     try {
 
         const sentences =
@@ -426,10 +451,39 @@ async function speak(text) {
             await response.json()
 
             audioQueue.push(
-                data.audio_url
-            )
+    data.audio_url
+)
 
-            playQueue()
+if (
+
+    !playbackStarted &&
+
+    (
+
+        audioQueue.length >= 2 ||
+
+        sentence ===
+        sentences[
+            sentences.length - 1
+        ]
+
+    )
+
+) {
+
+    playbackStarted =
+    true
+
+    playQueue()
+
+}
+            await new Promise(
+    (resolve) =>
+    setTimeout(
+        resolve,
+        0
+    )
+)
 
         }
 
@@ -494,7 +548,29 @@ state =
 isSpeaking =
 true
 
+
+
 await currentAudio.play()
+
+if (
+    !firstAudioPlayed
+) {
+
+    console.log(
+
+        "TTFW:",
+
+        Date.now() -
+        speechEndTime,
+
+        "ms"
+
+    )
+
+    firstAudioPlayed =
+    true
+
+}
 
         } catch (error) {
 
