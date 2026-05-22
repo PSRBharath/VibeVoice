@@ -384,54 +384,55 @@ TTS
 
 async function speak(text) {
 
-    
-
     try {
 
         const sentences =
-text.match(
-    /[^.!?]+[.!?]+/g
-) || [text] 
-        const response =
-        await fetch(
+        text.match(
+            /[^.!?]+[.!?]+/g
+        ) || [text]
 
-            "http://localhost:8000/tts",
+        for (
+            const sentence
+            of sentences
+        ) {
 
-            {
+            const response =
+            await fetch(
 
-                method: "POST",
+                "http://localhost:8000/tts",
 
-                headers: {
+                {
 
-                    "Content-Type":
-                    "application/json"
+                    method: "POST",
 
-                },
-                
-                body: JSON.stringify({
+                    headers: {
 
-                    text: text
+                        "Content-Type":
+                        "application/json"
 
-                })
+                    },
 
-            }
+                    body: JSON.stringify({
 
-        )
+                        text: sentence.trim()
 
-        const data =
-        await response.json()
-       
-        if (currentAudio) {
+                    })
 
-            currentAudio.pause()
+                }
+
+            )
+
+            const data =
+            await response.json()
+
+            audioQueue.push(
+                data.audio_url
+            )
+
+            playQueue()
 
         }
 
-        audioQueue.push(
-    data.audio_url
-)
-
-playQueue()
     } catch (error) {
 
         console.log(error)
