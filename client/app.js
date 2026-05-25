@@ -75,9 +75,16 @@ async function setupVAD() {
             state =
             "INTERRUPT_PENDING"
 
-            currentAudio.pause()
+           currentAudio.onended =
+null
 
-            currentAudio.currentTime = 0
+currentAudio.onpause =
+null
+
+currentAudio.pause()
+
+currentAudio.currentTime =
+0
 
         }
 
@@ -101,6 +108,9 @@ async function setupVAD() {
         },
 
         onSpeechEnd: () => {
+            clearTimeout(
+    interruptTimeout
+)
             if (
     state ===
     "PROCESSING"
@@ -411,11 +421,38 @@ false
 
     try {
 
-        const sentences =
-        text.match(
-            /[^.!?]+[.!?]+/g
-        ) || [text]
+        // const sentences =
+        // text.match(
+        //     /[^.!?]+[.!?]+/g
+        // ) || [text]
+        // const sentences = [text]
+        const rawSentences =
 
+text.match(
+    /[^.!?]+[.!?]+/g
+) || [text]
+
+const sentences = []
+
+for (
+
+    let i = 0;
+
+    i < rawSentences.length;
+
+    i += 3
+
+) {
+
+    sentences.push(
+
+        rawSentences
+            .slice(i, i + 3)
+            .join(" ")
+
+    )
+
+}
         for (
             const sentence
             of sentences
@@ -453,7 +490,10 @@ false
             audioQueue.push(
     data.audio_url
 )
-
+console.log(
+    "Audio queued:",
+    audioQueue.length
+)
 if (
 
     !playbackStarted &&
@@ -492,8 +532,9 @@ if (
         console.log(error)
 
         isSpeaking = false
-
-        startRecording()
+        
+        state = "IDLE"
+startRecording()
 
     }
 
@@ -501,84 +542,103 @@ if (
 
 async function playQueue() {
 
-    if (
-        isPlayingQueue
-    ) {
-
-        return
-
-    }
-
-    isPlayingQueue =
-    true
-    const generation =
-playbackGeneration
-
-    while (
-        audioQueue.length > 0
-    ) {
-        if (
-    generation !==
-    playbackGeneration
-) {
-
-    break
-
-}
-
-        const audioUrl =
-        audioQueue.shift()
-
-        currentAudio =
-        new Audio(audioUrl)
-
-        try {
-
-            if (
-    !currentAudio
-) {
-
-    break
-
-}
-
-state =
-"SPEAKING"
-
-isSpeaking =
-true
-
-
-
-await currentAudio.play()
-
-if (
-    !firstAudioPlayed
+   if (
+    isPlayingQueue
 ) {
 
     console.log(
-
-        "TTFW:",
-
-        Date.now() -
-        speechEndTime,
-
-        "ms"
-
+        "playQueue blocked"
     )
 
-    firstAudioPlayed =
-    true
+    return
 
 }
 
-        } catch (error) {
+    isPlayingQueue =
+    true
+console.log(
+    "playQueue started"
+)
+    try {
 
-            console.log(error)
+        const generation =
+        playbackGeneration
 
-        }
+        while (
+            audioQueue.length > 0
+        ) {
 
-        await new Promise(
+            if (
+                generation !==
+                playbackGeneration
+            ) {
+
+                break
+
+            }
+
+            const audioUrl =
+            audioQueue.shift()
+
+            currentAudio =
+            new Audio(audioUrl)
+
+            try {
+
+                if (
+                    !currentAudio
+                ) {
+
+                    break
+
+                }
+
+                state =
+                "SPEAKING"
+
+                isSpeaking =
+                true
+                console.log(
+    "Starting playback"
+)
+                await currentAudio.play()
+
+                if (
+                    !firstAudioPlayed
+                ) {
+
+                    console.log(
+
+                        "TTFW:",
+
+                        Date.now() -
+                        speechEndTime,
+
+                        "ms"
+
+                    )
+
+                    firstAudioPlayed =
+                    true
+
+                }
+
+            } catch (error) {
+
+                if (
+                    error.name !==
+                    "AbortError"
+                ) {
+
+                    console.log(
+                        error
+                    )
+
+                }
+
+            }
+
+            await new Promise(
     (resolve) => {
 
         if (!currentAudio) {
@@ -592,25 +652,45 @@ if (
         currentAudio.onended =
         () => {
 
+            console.log(
+                "Playback ended"
+            )
+
+            resolve()
+
+        }
+
+        currentAudio.onpause =
+        () => {
+
+            console.log(
+                "Playback paused"
+            )
+
             resolve()
 
         }
 
     }
 )
-        
+
+        }
+
+    } finally {
+        console.log(
+    "playQueue cleanup"
+)
+        isPlayingQueue =
+        false
+
+        isSpeaking =
+        false
+
+        state =
+        "IDLE"
+
+        startRecording()
 
     }
-
-    isPlayingQueue =
-    false
-
-    isSpeaking =
-    false
-
-    state =
-    "IDLE"
-
-    startRecording()
 
 }
