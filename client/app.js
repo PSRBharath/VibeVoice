@@ -21,6 +21,8 @@ let recordingWatchdog = null
 let recordingStartTime = null
 let speechEndTime = null
 let isProcessing = false
+let speechStartTime =
+0
 
 const button =
     document.getElementById("connect")
@@ -57,6 +59,19 @@ async function setupVAD() {
 
            if (isSpeaking) {
 
+            if (
+
+    Date.now() -
+    speechStartTime <
+
+    1500
+
+) {
+
+    return
+
+}
+
     clearTimeout(
         interruptTimeout
     )
@@ -75,11 +90,7 @@ async function setupVAD() {
             state =
             "INTERRUPT_PENDING"
 
-           currentAudio.onended =
-null
-
-currentAudio.onpause =
-null
+           
 
 currentAudio.pause()
 
@@ -500,7 +511,7 @@ if (
 
     (
 
-        audioQueue.length >= 2 ||
+        audioQueue.length >= 1 ||
 
         sentence ===
         sentences[
@@ -514,7 +525,11 @@ if (
     playbackStarted =
     true
 
+    setTimeout(() => {
+
     playQueue()
+
+}, 500)
 
 }
             await new Promise(
@@ -602,7 +617,8 @@ console.log(
     "Starting playback"
 )
                 await currentAudio.play()
-
+                speechStartTime =
+Date.now()
                 if (
                     !firstAudioPlayed
                 ) {
@@ -620,7 +636,7 @@ console.log(
 
                     firstAudioPlayed =
                     true
-
+                    
                 }
 
             } catch (error) {
@@ -689,7 +705,11 @@ console.log(
         state =
         "IDLE"
 
-        startRecording()
+        setTimeout(() => {
+
+    startRecording()
+
+}, 1200)
 
     }
 
