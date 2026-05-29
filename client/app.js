@@ -4,7 +4,8 @@ import {
 "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web/+esm"
 
 let audioQueue = []
-
+let isIntro =
+false
 let isPlayingQueue =
     false
 let vad = null
@@ -23,7 +24,68 @@ let speechEndTime = null
 let isProcessing = false
 let speechStartTime =
 0
+let ttsChain =
+Promise.resolve()
 
+const x =
+    new WebSocket(
+        "ws://localhost:3000"
+    )
+    x.onmessage =
+(a) => {
+
+    try {
+
+        const b =
+            JSON.parse(
+                a.data
+            )
+
+        if (
+
+    b.type ===
+    "llm_chunk"
+
+) {
+
+    console.log(
+
+        "LIVE CHUNK:",
+
+        b.text
+
+    )
+
+    let c =
+        b.text
+
+    c =
+    c.replaceAll(
+
+        "XIRR.AI",
+
+        "XIRR AI"
+
+    )
+
+    ttsChain =
+ttsChain.then(
+
+    () => speak(c)
+
+)
+
+}
+
+    }
+
+    catch (c) {
+
+        console.log(c)
+
+    }
+
+}
 const button =
     document.getElementById("connect")
 
@@ -45,6 +107,14 @@ async function setupVAD() {
 
         onSpeechStart: () => {
 
+            if (
+    isIntro
+) {
+
+    return
+
+}
+
                 if (
     state ===
     "PROCESSING"
@@ -57,64 +127,64 @@ async function setupVAD() {
                 "ML Speech started"
             )
 
-           if (isSpeaking) {
+//            if (isSpeaking) {
 
-            if (
+//             if (
 
-    Date.now() -
-    speechStartTime <
+//     Date.now() -
+//     speechStartTime <
 
-    1500
+//     1500
 
-) {
+// ) {
 
-    return
+//     return
 
-}
+// }
 
-    clearTimeout(
-        interruptTimeout
-    )
+//     clearTimeout(
+//         interruptTimeout
+//     )
 
-    interruptTimeout =
-    setTimeout(() => {
+//     interruptTimeout =
+//     setTimeout(() => {
 
-        console.log(
-            "ML interruption"
-        )
+//         console.log(
+//             "ML interruption"
+//         )
 
-        if (
-            currentAudio
-        ) {
+//         if (
+//             currentAudio
+//         ) {
 
-            state =
-            "INTERRUPT_PENDING"
+//             state =
+//             "INTERRUPT_PENDING"
 
            
 
-currentAudio.pause()
+// currentAudio.pause()
 
-currentAudio.currentTime =
-0
+// currentAudio.currentTime =
+// 0
 
-        }
+//         }
 
-        audioQueue = []
+//         audioQueue = []
 
-        isSpeaking =
-        false
+//         isSpeaking =
+//         false
 
-        state =
-        "INTERRUPT_PENDING"
+//         state =
+//         "INTERRUPT_PENDING"
 
-        currentAudio =
-        null
+//         currentAudio =
+//         null
 
-        playbackGeneration++
+//         playbackGeneration++
 
-    }, 700)
+//     }, 700)
 
-}
+// }
 
         },
 
@@ -182,7 +252,27 @@ button.onclick = async () => {
 
     await setupVAD()
 
-    startRecording()
+    playIntro()     
+
+}
+
+async function playIntro() {
+
+    isIntro =
+true
+
+    state =
+    "SPEAKING"
+
+    isSpeaking =
+    true
+
+    await speak(
+
+`Hello, I’m XIRR AI, your AI-powered wealth assistant. I help simplify wealth management, investment insights, portfolio understanding, and financial planning conversations. Backed by institutional-grade expertise in global wealth strategies, I’m here to help answer your questions and guide you through financial decisions. How may I assist you today?
+`
+
+    )
 
 }
 
@@ -305,7 +395,10 @@ async function startRecording() {
 
             const sttStart =
     Date.now()
+        firstAudioPlayed =
+false
 
+audioQueue = []
         const response =
             await fetch(
                 "http://localhost:3000/transcribe",
@@ -378,7 +471,7 @@ console.log(
     speechEndTime,
     "ms"
 )
-        speak(data.reply)
+        //speak(data.reply)
 
     } catch (error) {
 
@@ -425,8 +518,7 @@ TTS
 
 async function speak(text) {
 
-    firstAudioPlayed =
-false   
+      
 let playbackStarted =
 false
 
@@ -511,7 +603,7 @@ if (
 
     (
 
-        audioQueue.length >= 1 ||
+        audioQueue.length >= 2 ||
 
         sentence ===
         sentences[
@@ -527,9 +619,9 @@ if (
 
     setTimeout(() => {
 
-    playQueue()
+        playQueue()
 
-}, 500)
+    }, 500)
 
 }
             await new Promise(
@@ -570,11 +662,38 @@ async function playQueue() {
 }
 
     isPlayingQueue =
-    true
+true
+
 console.log(
     "playQueue started"
 )
-    try {
+
+if (
+
+    audioQueue.length <
+    2
+
+    &&
+
+    !firstAudioPlayed
+
+) {
+
+    console.log(
+
+        "buffering:",
+
+        audioQueue.length
+
+    )
+
+    isPlayingQueue =
+    false
+
+    return
+
+}
+try {
 
         const generation =
         playbackGeneration
@@ -623,16 +742,20 @@ Date.now()
                     !firstAudioPlayed
                 ) {
 
-                    console.log(
+                    if (
+    speechEndTime
+    &&
+    speechEndTime > 0
+) {
 
-                        "TTFW:",
+    console.log(
+        "TTFW:",
+        Date.now() -
+        speechEndTime,
+        "ms"
+    )
 
-                        Date.now() -
-                        speechEndTime,
-
-                        "ms"
-
-                    )
+}
 
                     firstAudioPlayed =
                     true
@@ -706,6 +829,15 @@ Date.now()
         "IDLE"
 
         setTimeout(() => {
+
+    if (
+        isIntro
+    ) {
+
+        isIntro =
+        false
+
+    }
 
     startRecording()
 

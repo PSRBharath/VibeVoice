@@ -174,8 +174,54 @@ app.post(
                                                     "qwen2.5:7b",
 
                                                 prompt:
-`You are a realtime conversational voice assistant.
-Keep responses short and natural.
+`You are XIRR.AI, a premium AI-powered wealth management assistant.
+
+You represent XIRR.AI, a boutique institutional-grade wealth management firm serving Ultra High Net Worth (UHNW) and High Net Worth (HNW) individuals, business owners, executives, NRIs, and family offices.
+
+Your personality:
+
+- Professional, premium, intelligent, warm, and trustworthy.
+- Speak naturally like a highly experienced private wealth advisor.
+- Keep responses conversational, concise, and voice-friendly.
+- Avoid sounding robotic, overly technical, or excessively sales-driven.
+- Explain concepts clearly and elegantly.
+- Keep answers short unless the user explicitly asks for detail.
+
+About XIRR.AI:
+
+- XIRR.AI combines institutional-grade wealth management with AI-driven financial intelligence.
+- Services include investment advisory, portfolio management, wealth structuring, estate planning, tax-aware structuring, and cross-border financial guidance.
+- XIRR.AI operates as a fiduciary advisor and does not custody client assets.
+- Recommendations emphasize long-term wealth preservation, intelligent risk management, and personalization.
+
+Critical business behavior rules:
+
+- You represent XIRR.AI and should position XIRR.AI as the primary trusted wealth partner.
+- Do NOT recommend competing platforms, robo-advisors, brokers, apps, or wealth-management firms unless explicitly asked for comparisons.
+- Do NOT say "visit another platform" or redirect users elsewhere.
+- When users ask investment questions, provide thoughtful guidance and suggest that XIRR.AI can help design a suitable portfolio aligned to risk profile and goals.
+- Encourage profiling, consultation, and personalized wealth planning when relevant.
+- Never promise guaranteed returns.
+- Never hallucinate financial facts.
+- Remain balanced and risk-aware.
+- Avoid legal or tax certainty statements.
+- If uncertain, politely clarify.
+
+Example behavior:
+If user says:
+"I have ₹2 lakh, how should I invest?"
+
+Do NOT say:
+"Try online platforms or robo advisors."
+
+Instead say:
+"Investment allocation depends on your goals, time horizon, liquidity needs, and risk profile. XIRR.AI can help structure a suitable allocation across equity, debt, and diversified strategies aligned to your objectives."
+
+Keep responses suitable for realtime voice conversation.
+- Avoid numbered lists in spoken responses.
+- Prefer short conversational sentences.
+- Speak naturally for voice interaction.
+- Never respond with "1. 2. 3." unless explicitly requested.
 
 Conversation:
 
@@ -190,59 +236,183 @@ user: ${transcript}
 
 assistant:`,
 
-                                                stream: false
+                                                stream: true
+
+                                            },
+
+                                            {
+
+                                                responseType:
+                                                "stream"
 
                                             }
 
                                         )
 
-                                    const reply =
-                                        response
-                                            .data
-                                            .response
+                                    let a = ""
+                                    let h = ""
 
-                                    console.log(
-                                        "AI:",
-                                        reply
+                                    response.data.on(
+
+                                        "data",
+
+                                        (c) => {
+
+                                            const d =
+                                                c.toString()
+
+                                            const e =
+                                                d.split("\n")
+
+                                            for (
+                                                const f
+                                                of e
+                                            ) {
+
+                                                if (
+                                                    !f.trim()
+                                                ) {
+
+                                                    continue
+
+                                                }
+
+                                                try {
+
+                                                    const g =
+                                                        JSON.parse(f)
+
+                                                    if (
+                                                        g.response
+                                                    ) {
+
+process.stdout.write(
+    g.response
+)
+
+a +=
+    g.response
+
+h +=
+    g.response
+
+const k =
+    /(?<!XIRR)\.(?=\s|$)|[!?](?=\s|$)/
+if (
+    k.test(h)
+) {
+
+    const i =
+        h.trim()
+
+    console.log(
+
+        "\nSTREAM CHUNK:",
+
+        i
+
+    )
+
+    wss.clients.forEach(
+
+        (j) => {
+
+            if (
+
+                j.readyState ===
+                WebSocket.OPEN
+
+            ) {
+
+                j.send(
+
+                    JSON.stringify({
+
+                        type:
+                        "llm_chunk",
+
+                        text:
+                        i
+
+                    })
+
+                )
+
+            }
+
+        }
+
+    )
+
+    h = ""
+
+}
+
+                                                    }
+
+                                                } catch {
+
+                                                }
+
+                                            }
+
+                                        }
+
                                     )
 
-                                    conversationHistory.push({
+                                    response.data.on(
 
-                                        role: "user",
+                                        "end",
 
-                                        content:
-                                            transcript
+                                        () => {
 
-                                    })
+                                            console.log(
+                                                "\nFINAL:",
+                                                a
+                                            )
 
-                                    conversationHistory.push({
+                                            conversationHistory.push({
 
-                                        role: "assistant",
+                                                role: "user",
 
-                                        content:
-                                            reply
+                                                content:
+                                                    transcript
 
-                                    })
+                                            })
 
-                                    if (
+                                            conversationHistory.push({
 
-                                        conversationHistory.length > 20
+                                                role: "assistant",
 
-                                    ) {
+                                                content:
+                                                    a
 
-                                        conversationHistory =
-                                            conversationHistory.slice(-20)
+                                            })
 
-                                    }
+                                            if (
 
-                                    res.json({
+                                                conversationHistory.length > 20
 
-                                        text:
-                                            transcript,
+                                            ) {
 
-                                        reply
+                                                conversationHistory =
+                                                    conversationHistory.slice(-20)
 
-                                    })
+                                            }
+
+                                            res.json({
+
+                                                text:
+                                                    transcript,
+
+                                                reply:
+                                                    a
+
+                                            })
+
+                                        }
+
+                                    )
 
                                 } catch (apiError) {
 

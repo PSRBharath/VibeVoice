@@ -2,18 +2,91 @@
 <html>
 
 <head>
-    <title>VibeVoice</title>
+
+    <title>Vaakya</title>
+
+    <style>
+
+        #connect {
+
+            border: 2px solid brown;
+
+            background: white;
+
+            padding: 12px 28px;
+
+            font-size: 18px;
+
+            cursor: pointer;
+
+            transition:
+                box-shadow 0.25s ease,
+                transform 0.15s ease;
+
+        }
+
+        #connect.glow {
+
+            box-shadow:
+                0 0 12px rgba(
+                    0,
+                    150,
+                    255,
+                    0.8
+                );
+
+            transform:
+                scale(1.02);
+
+        }
+
+    </style>
+
 </head>
 
 <body>
 
-    <h1>VibeVoice</h1>
+    <h1>Vaakya</h1>
 
     <button id="connect">
         Connect
     </button>
 
-    <script type="module" src="app.js"></script>
+    <script>
+
+        const a =
+            document.getElementById(
+                "connect"
+            )
+
+        a.addEventListener(
+
+            "click",
+
+            () => {
+
+                a.classList.add(
+                    "glow"
+                )
+
+                setTimeout(() => {
+
+                    a.classList.remove(
+                        "glow"
+                    )
+
+                }, 1000)
+
+            }
+
+        )
+
+    </script>
+
+    <script
+        type="module"
+        src="app.js"
+    ></script>
 
 </body>
 
