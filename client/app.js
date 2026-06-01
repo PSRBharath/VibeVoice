@@ -465,12 +465,19 @@ console.log(
             "AI:",
             data.reply
         )
-        console.log(
-    "Total Delay:",
-    Date.now() -
-    speechEndTime,
-    "ms"
-)
+        if (
+    speechEndTime
+) {
+
+    console.log(
+        "Total Delay:",
+        Date.now() -
+        speechEndTime,
+        "ms"
+    )
+
+}
+
         //speak(data.reply)
 
     } catch (error) {
@@ -518,119 +525,255 @@ TTS
 
 async function speak(text) {
 
-      
-let playbackStarted =
-false
+    let playbackStarted = false
 
     try {
 
-        // const sentences =
-        // text.match(
-        //     /[^.!?]+[.!?]+/g
-        // ) || [text]
-        // const sentences = [text]
-        const rawSentences =
+       const rawSentences =
+    text.match(
+        /[^.!?]+[.!?]+/g
+    ) || [text]
 
-text.match(
-    /[^.!?]+[.!?]+/g
-) || [text]
-
-const sentences = []
-
-for (
-
-    let i = 0;
-
-    i < rawSentences.length;
-
-    i += 3
-
-) {
-
-    sentences.push(
-
-        rawSentences
-            .slice(i, i + 3)
-            .join(" ")
-
+const sentences =
+    rawSentences.map(
+        (a) => a.trim()
     )
+        console.log(
+            "Sentences:",
+            sentences
+        )
 
-}
+        /*
+        -----------------------------------
+        ORDERED BUFFER
+        -----------------------------------
+        */
+
+        const a = {}
+
+        let b = 0
+
+        /*
+        -----------------------------------
+        TTS GENERATION LOOP
+        -----------------------------------
+        */
+
         for (
-            const sentence
-            of sentences
+
+            let c = 0;
+
+            c < sentences.length;
+
+            c++
+
         ) {
 
-            const response =
-            await fetch(
+            const d =
+                sentences[c]
 
-                "http://localhost:8000/tts",
+           const e =
+    Date.now()
 
-                {
+console.log(
+    `[GEN START]`,
+    {
+        index: c,
+        at: new Date()
+            .toLocaleTimeString(),
+        ts: e,
+        text: d
+    }
+)
 
-                    method: "POST",
+            try {
 
-                    headers: {
+                const f =
+                    await fetch(
 
-                        "Content-Type":
-                        "application/json"
+                        "http://localhost:8000/tts",
 
-                    },
+                        {
 
-                    body: JSON.stringify({
+                            method:
+                            "POST",
 
-                        text: sentence.trim()
+                            headers: {
 
-                    })
+                                "Content-Type":
+                                "application/json"
+
+                            },
+
+                            body:
+                            JSON.stringify({
+
+                                text:
+                                d.trim()
+
+                            })
+
+                        }
+
+                    )
+
+                const g =
+                    await f.json()
+
+               const l =
+    Date.now()
+
+console.log(
+    `[GEN END]`,
+    {
+        index: c,
+        at: new Date()
+            .toLocaleTimeString(),
+        ts: l,
+        latency:
+        l - e,
+        queue:
+        audioQueue.length
+    }
+)
+
+                /*
+                -----------------------------------
+                STORE BY INDEX
+                -----------------------------------
+                */
+
+                a[c] =
+                    g.audio_url
+
+                console.log(
+                    "Stored:",
+                    c
+                )
+
+                /*
+                -----------------------------------
+                RELEASE IN ORDER
+                -----------------------------------
+                */
+
+                while (
+
+                    a[b]
+
+                ) {
+
+                    audioQueue.push(
+
+                        a[b]
+
+                    )
+
+                    console.log(
+
+                        "Ordered queue push",
+
+                        {
+                            index: b,
+                            queue:
+                            audioQueue.length
+                        }
+
+                    )
+
+                    delete a[b]
+
+                    b++
 
                 }
 
-            )
+                /*
+                -----------------------------------
+                PLAYBACK START
+                -----------------------------------
+                */
 
-            const data =
-            await response.json()
+                const h =
+                    audioQueue.length
 
-            audioQueue.push(
-    data.audio_url
-)
-console.log(
-    "Audio queued:",
-    audioQueue.length
-)
-if (
+                const i =
+                    sentences.length -
+                    c -
+                    1
 
-    !playbackStarted &&
+                const j =
+                    h >= 2
 
-    (
+                const k =
+                    h >= 1 &&
+                    i === 0
 
-        audioQueue.length >= 2 ||
+                if (
 
-        sentence ===
-        sentences[
-            sentences.length - 1
-        ]
+                    !playbackStarted &&
 
-    )
+                    (
+                        j ||
+                        k
+                    )
 
-) {
+                ) {
 
-    playbackStarted =
-    true
+                    playbackStarted =
+                    true
 
-    setTimeout(() => {
+                    console.log(
 
-        playQueue()
+                        "Playback scheduled",
 
-    }, 500)
+                        {
+                            queue:
+                            h
+                        }
 
-}
+                    )
+
+                    setTimeout(() => {
+
+                        console.log(
+
+                            "Playback starting",
+
+                            {
+                                queue:
+                                audioQueue.length
+                            }
+
+                        )
+
+                        playQueue()
+
+                    }, 500)
+
+                }
+
+            } catch (error) {
+
+                console.log(
+
+                    "TTS error",
+
+                    error
+
+                )
+
+            }
+
             await new Promise(
-    (resolve) =>
-    setTimeout(
-        resolve,
-        0
-    )
-)
+
+                (r) =>
+
+                setTimeout(
+                    r,
+                    0
+                )
+
+            )
 
         }
 
@@ -639,9 +782,10 @@ if (
         console.log(error)
 
         isSpeaking = false
-        
+
         state = "IDLE"
-startRecording()
+
+        startRecording()
 
     }
 
@@ -670,12 +814,8 @@ console.log(
 
 if (
 
-    audioQueue.length <
-    2
-
-    &&
-
-    !firstAudioPlayed
+    audioQueue.length ===
+    0
 
 ) {
 
@@ -733,7 +873,16 @@ try {
                 isSpeaking =
                 true
                 console.log(
-    "Starting playback"
+    `[PLAY START]`,
+    {
+        at:
+        new Date()
+            .toLocaleTimeString(),
+        ts:
+        Date.now(),
+        queue:
+        audioQueue.length
+    }
 )
                 await currentAudio.play()
                 speechStartTime =
@@ -792,8 +941,17 @@ Date.now()
         () => {
 
             console.log(
-                "Playback ended"
-            )
+    `[PLAY END]`,
+    {
+        at:
+        new Date()
+            .toLocaleTimeString(),
+        ts:
+        Date.now(),
+        queue:
+        audioQueue.length
+    }
+)
 
             resolve()
 
