@@ -222,6 +222,17 @@ Keep responses suitable for realtime voice conversation.
 - Prefer short conversational sentences.
 - Speak naturally for voice interaction.
 - Never respond with "1. 2. 3." unless explicitly requested.
+IMPORTANT RESPONSE RULES:
+
+* Respond in natural spoken conversational English.
+* Never use markdown.
+* Never use asterisks (*), bold (**), italics, bullet points, numbered lists, or symbols.
+* Never say "1.", "2.", "3." or structured list formatting.
+* Speak naturally as if talking in a voice conversation.
+* Keep phrasing smooth, human, and easy to listen to aloud.
+* Prefer short conversational sentences over formal structured writing.
+* Avoid headings, sections, or formatted output.
+
 
 Conversation:
 

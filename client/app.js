@@ -526,6 +526,8 @@ TTS
 async function speak(text) {
 
     let playbackStarted = false
+    const firstGenerationStart =
+    Date.now()
 
     try {
 
@@ -708,16 +710,32 @@ console.log(
                     h >= 1 &&
                     i === 0
 
-                if (
+                const m =
+    Date.now() -
+    firstGenerationStart
 
-                    !playbackStarted &&
+const n =
+    h >= 2
 
-                    (
-                        j ||
-                        k
-                    )
+const o =
+    h >= 1 &&
+    m > 4000
 
-                ) {
+const p =
+    h >= 1 &&
+    i === 0
+
+if (
+
+    !playbackStarted &&
+
+    (
+        n ||
+        o ||
+        p
+    )
+
+) {
 
                     playbackStarted =
                     true
