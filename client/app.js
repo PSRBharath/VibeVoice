@@ -496,7 +496,7 @@ console.log(
         "Recording started"
     )
 
-    mediaRecorder.start()
+    mediaRecorder.start(250)
     recordingWatchdog =
 setTimeout(() => {
 
@@ -522,34 +522,74 @@ setTimeout(() => {
 TTS
 -----------------------------------
 */
-
 async function speak(text) {
 
-    let playbackStarted = false
+    let playbackStarted =
+        false
+
     const firstGenerationStart =
-    Date.now()
+        Date.now()
 
     try {
 
-       const rawSentences =
-    text.match(
-        /[^.!?]+[.!?]+/g
-    ) || [text]
+        /*
+        -----------------------------------
+        CLEAN TEXT
+        -----------------------------------
+        */
 
-const sentences =
-    rawSentences.map(
-        (a) => a.trim()
+        text =
+            text
+
+            // remove markdown
+            .replace(/\*\*/g, "")
+
+            // remove numbered bullets
+            .replace(/\n?\d+\.\s*/g, " ")
+
+            // fix abbreviations
+            .replace(/U\.S\./g, "US")
+            .replace(/U\.K\./g, "UK")
+            .replace(/XIRR\.AI/g, "XIRR AI")
+
+            // collapse spaces
+            .replace(/\s+/g, " ")
+            .trim()
+
+        /*
+        -----------------------------------
+        SMART SPLIT
+        -----------------------------------
+        */
+
+        const sentences =
+
+    (
+
+        text.match(
+
+            /[^.!?]+(?:[.!?]+|$)/g
+
+        ) || [text]
+
     )
+
+    .map(
+
+        a => a.trim()
+
+    )
+
+    .filter(
+
+        a => a.length > 2
+
+    )
+
         console.log(
             "Sentences:",
             sentences
         )
-
-        /*
-        -----------------------------------
-        ORDERED BUFFER
-        -----------------------------------
-        */
 
         const a = {}
 
@@ -557,251 +597,188 @@ const sentences =
 
         /*
         -----------------------------------
-        TTS GENERATION LOOP
+        PARALLEL GENERATION
         -----------------------------------
         */
 
-        for (
+        const q =
 
-            let c = 0;
+            sentences.map(
 
-            c < sentences.length;
+                async (
 
-            c++
-
-        ) {
-
-            const d =
-                sentences[c]
-
-           const e =
-    Date.now()
-
-console.log(
-    `[GEN START]`,
-    {
-        index: c,
-        at: new Date()
-            .toLocaleTimeString(),
-        ts: e,
-        text: d
-    }
-)
-
-            try {
-
-                const f =
-                    await fetch(
-
-                        "http://localhost:8000/tts",
-
-                        {
-
-                            method:
-                            "POST",
-
-                            headers: {
-
-                                "Content-Type":
-                                "application/json"
-
-                            },
-
-                            body:
-                            JSON.stringify({
-
-                                text:
-                                d.trim()
-
-                            })
-
-                        }
-
-                    )
-
-                const g =
-                    await f.json()
-
-               const l =
-    Date.now()
-
-console.log(
-    `[GEN END]`,
-    {
-        index: c,
-        at: new Date()
-            .toLocaleTimeString(),
-        ts: l,
-        latency:
-        l - e,
-        queue:
-        audioQueue.length
-    }
-)
-
-                /*
-                -----------------------------------
-                STORE BY INDEX
-                -----------------------------------
-                */
-
-                a[c] =
-                    g.audio_url
-
-                console.log(
-                    "Stored:",
+                    d,
                     c
-                )
 
-                /*
-                -----------------------------------
-                RELEASE IN ORDER
-                -----------------------------------
-                */
+                ) => {
 
-                while (
-
-                    a[b]
-
-                ) {
-
-                    audioQueue.push(
-
-                        a[b]
-
-                    )
+                    const e =
+                        Date.now()
 
                     console.log(
 
-                        "Ordered queue push",
+                        `[GEN START]`,
 
                         {
-                            index: b,
-                            queue:
-                            audioQueue.length
+                            index: c,
+                            at:
+                                new Date()
+                                    .toLocaleTimeString(),
+                            ts: e,
+                            text: d
                         }
 
                     )
 
-                    delete a[b]
+                    try {
 
-                    b++
+                        const f =
+                            await fetch(
 
-                }
+                                "http://localhost:8000/tts",
 
-                /*
-                -----------------------------------
-                PLAYBACK START
-                -----------------------------------
-                */
+                                {
 
-                const h =
-                    audioQueue.length
+                                    method:
+                                        "POST",
 
-                const i =
-                    sentences.length -
-                    c -
-                    1
+                                    headers: {
 
-                const j =
-                    h >= 2
+                                        "Content-Type":
+                                            "application/json"
 
-                const k =
-                    h >= 1 &&
-                    i === 0
+                                    },
 
-                const m =
-    Date.now() -
-    firstGenerationStart
+                                    body:
+                                        JSON.stringify({
 
-const n =
-    h >= 2
+                                            text:
+                                                d.trim()
 
-const o =
-    h >= 1 &&
-    m > 4000
+                                        })
 
-const p =
-    h >= 1 &&
-    i === 0
+                                }
 
-if (
+                            )
 
-    !playbackStarted &&
+                        const g =
+                            await f.json()
 
-    (
-        n ||
-        o ||
-        p
-    )
-
-) {
-
-                    playbackStarted =
-                    true
-
-                    console.log(
-
-                        "Playback scheduled",
-
-                        {
-                            queue:
-                            h
-                        }
-
-                    )
-
-                    setTimeout(() => {
+                        const l =
+                            Date.now()
 
                         console.log(
 
-                            "Playback starting",
+                            `[GEN END]`,
 
                             {
+
+                                index:
+                                    c,
+
+                                latency:
+                                    l - e,
+
                                 queue:
-                                audioQueue.length
+                                    audioQueue.length
+
                             }
 
                         )
 
-                        playQueue()
+                        a[c] =
+                            g.audio_url
 
-                    }, 500)
+                        while (
+
+                            a[b]
+
+                        ) {
+
+                            audioQueue.push(
+
+                                a[b]
+
+                            )
+
+                            delete a[b]
+
+                            b++
+
+                        }
+
+                        /*
+                        -----------------------------------
+                        START PLAYBACK FAST
+                        -----------------------------------
+                        */
+
+                        const h =
+                            audioQueue.length
+
+                        const m =
+                            Date.now() -
+                            firstGenerationStart
+
+                        if (
+
+                            !playbackStarted &&
+
+                            (
+
+                                h >= 1 ||
+                                m > 1500
+
+                            )
+
+                        ) {
+
+                            playbackStarted =
+                                true
+
+                            console.log(
+                                "Playback starting"
+                            )
+
+                            playQueue()
+
+                        }
+
+                    } catch (
+
+                        error
+
+                    ) {
+
+                        console.log(
+
+                            "TTS error",
+
+                            error
+
+                        )
+
+                    }
 
                 }
 
-            } catch (error) {
-
-                console.log(
-
-                    "TTS error",
-
-                    error
-
-                )
-
-            }
-
-            await new Promise(
-
-                (r) =>
-
-                setTimeout(
-                    r,
-                    0
-                )
-
             )
 
-        }
+        await Promise.all(q)
 
-    } catch (error) {
+    } catch (
+
+        error
+
+    ) {
 
         console.log(error)
 
-        isSpeaking = false
+        isSpeaking =
+            false
 
-        state = "IDLE"
+        state =
+            "IDLE"
 
         startRecording()
 
@@ -975,16 +952,7 @@ Date.now()
 
         }
 
-        currentAudio.onpause =
-        () => {
-
-            console.log(
-                "Playback paused"
-            )
-
-            resolve()
-
-        }
+        
 
     }
 )

@@ -7,24 +7,43 @@ const cors = require("cors")
 const axios = require("axios")
 const multer = require("multer")
 const fs = require("fs")
-const path = require("path")
-const { exec } = require("child_process")
+const FormData = require("form-data")
+const { exec } =
+    require("child_process")
 
-const app = express()
+const app =
+    express()
 
-app.use(cors())
+app.use(
+    cors()
+)
 
-const server = http.createServer(app)
+const server =
+    http.createServer(
+        app
+    )
 
-const wss = new WebSocket.Server({ server })
+const wss =
+    new WebSocket.Server({
+        server
+    })
 
-let conversationHistory = []
+let conversationHistory =
+    []
 
-const upload = multer({
-    dest: "uploads/"
-})
+const upload =
+    multer({
 
-app.use(express.static("client"))
+        dest:
+            "uploads/"
+
+    })
+
+app.use(
+    express.static(
+        "client"
+    )
+)
 
 /*
 -----------------------------------
@@ -36,203 +55,248 @@ app.post(
 
     "/transcribe",
 
-    upload.single("audio"),
+    upload.single(
+        "audio"
+    ),
 
-    (req, res) => {
+    async (
+        req,
+        res
+    ) => {
 
-        const inputPath =
-            req.file.path + ".webm"
+        try {
 
-        fs.renameSync(
-            req.file.path,
-            inputPath
-        )
+            const inputPath =
 
-        const wavPath =
-            req.file.path + ".wav"
+                req.file.path +
+                ".webm"
 
-        const outputBase =
-            path.join(
-                "uploads",
-                path.parse(inputPath).name
+            fs.renameSync(
+
+                req.file.path,
+
+                inputPath
+
             )
 
-        const ffmpegCommand =
+            const wavPath =
 
-            `"D:/ffmpeg-master-latest-win64-gpl-shared/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe" ` +
+                req.file.path +
+                ".wav"
 
-            `-i "${inputPath}" ` +
+            const ffmpegCommand =
 
-            `-ar 16000 ` +
+                `"D:/ffmpeg-master-latest-win64-gpl-shared/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe" ` +
 
-            `-ac 1 ` +
+                `-i "${inputPath}" ` +
 
-            `"${wavPath}" -y`
+                `-ar 16000 ` +
 
-        exec(
+                `-ac 1 ` +
 
-            ffmpegCommand,
+                `-threads 0 ` +
 
-            (ffmpegError) => {
+                `"${wavPath}" -y`
 
-                if (ffmpegError) {
+            await new Promise(
 
-                    console.log(
-                        "FFmpeg Error:",
-                        ffmpegError
-                    )
+                (
+                    resolve,
+                    reject
+                ) => {
 
-                    return res
-                        .status(500)
-                        .send(
-                            "FFmpeg conversion failed"
-                        )
+                    exec(
 
-                }
+                        ffmpegCommand,
 
-                const whisperCommand =
+                        (
 
-                    `C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/build/bin/Release/whisper-cli.exe ` +
+                            ffmpegError
 
-                    `-m C:/Users/sriramabharath/Desktop/internship@Xerago/whisper.cpp/models/ggml-base.en.bin ` +
+                        ) => {
 
-                    `-f "${wavPath}" ` +
+                            if (
 
-                    `-otxt ` +
+                                ffmpegError
 
-                    `-of "${outputBase}"`
+                            ) {
 
-                exec(
+                                console.log(
 
-                    whisperCommand,
+                                    "FFmpeg Error:",
 
-                    async (
-                        error,
-                        stdout,
-                        stderr
-                    ) => {
+                                    ffmpegError
 
-                        if (error) {
-
-                            console.log(
-                                "Whisper Error:",
-                                error
-                            )
-
-                            return res
-                                .status(500)
-                                .send(
-                                    "Whisper failed"
                                 )
+
+                                reject(
+                                    ffmpegError
+                                )
+
+                                return
+
+                            }
+
+                            resolve()
 
                         }
 
-                        const txtFile =
-                            outputBase + ".txt"
+                    )
 
-                        fs.readFile(
+                }
 
-                            txtFile,
+            )
 
-                            "utf8",
+            /*
+            -----------------------------------
+            WHISPER
+            -----------------------------------
+            */
 
-                            async (
-                                err,
-                                transcript
-                            ) => {
+            const form =
 
-                                if (err) {
+                new FormData()
 
-                                    console.log(err)
+            form.append(
 
-                                    return res
-                                        .status(500)
-                                        .send(
-                                            "Transcript read failed"
-                                        )
+                "file",
 
-                                }
+                fs.createReadStream(
+                    wavPath
+                )
 
-                                transcript =
-                                    transcript.trim()
+            )
 
-                                console.log(
-                                    "User:",
-                                    transcript
-                                )
+            form.append(
 
-                                try {
+                "response_format",
 
-                                    const response =
-                                        await axios.post(
+                "json"
 
-                                            "http://10.100.20.76:11434/api/generate",
+            )
 
-                                            {
+            const whisperStart =
+                Date.now()
 
-                                                model:
-                                                    "qwen2.5:7b",
+            const whisperResponse =
 
-                                                prompt:
+                await axios.post(
+
+                    "http://127.0.0.1:8081/inference",
+
+                    form,
+
+                    {
+
+                        headers:
+                            form.getHeaders(),
+
+                        timeout:
+                            30000
+
+                    }
+
+                )
+
+            console.log(
+
+                "Whisper latency:",
+
+                Date.now() -
+                whisperStart,
+
+                "ms"
+
+            )
+
+            let transcript =
+
+                whisperResponse
+                    .data
+                    .text ||
+
+                ""
+
+            transcript =
+
+                transcript
+                    .trim()
+
+            console.log(
+
+                "User:",
+
+                transcript
+
+            )
+
+            if (
+
+                !transcript
+
+            ) {
+
+                return res.json({
+
+                    text: "",
+
+                    reply: ""
+
+                })
+
+            }
+
+            /*
+            -----------------------------------
+            LLM STREAMING
+            -----------------------------------
+            */
+
+            let a = ""
+
+            try {
+
+                const response =
+
+                    await axios.post(
+
+                        "http://10.100.20.76:11434/api/generate",
+
+                        {
+
+                            model:
+                                "qwen2.5:7b",
+
+                            prompt:
 `You are XIRR.AI, a premium AI-powered wealth management assistant.
 
 You represent XIRR.AI, a boutique institutional-grade wealth management firm serving Ultra High Net Worth (UHNW) and High Net Worth (HNW) individuals, business owners, executives, NRIs, and family offices.
 
-Your personality:
+Professional, premium, intelligent, warm, and trustworthy.
 
-- Professional, premium, intelligent, warm, and trustworthy.
-- Speak naturally like a highly experienced private wealth advisor.
-- Keep responses conversational, concise, and voice-friendly.
-- Avoid sounding robotic, overly technical, or excessively sales-driven.
-- Explain concepts clearly and elegantly.
-- Keep answers short unless the user explicitly asks for detail.
+Speak naturally like a highly experienced private wealth advisor.
 
-About XIRR.AI:
+Keep responses conversational, concise, and voice-friendly.
 
-- XIRR.AI combines institutional-grade wealth management with AI-driven financial intelligence.
-- Services include investment advisory, portfolio management, wealth structuring, estate planning, tax-aware structuring, and cross-border financial guidance.
-- XIRR.AI operates as a fiduciary advisor and does not custody client assets.
-- Recommendations emphasize long-term wealth preservation, intelligent risk management, and personalization.
+CRITICAL RULES:
 
-Critical business behavior rules:
+Respond like a premium wealth advisor helping a client understand decisions.
 
-- You represent XIRR.AI and should position XIRR.AI as the primary trusted wealth partner.
-- Do NOT recommend competing platforms, robo-advisors, brokers, apps, or wealth-management firms unless explicitly asked for comparisons.
-- Do NOT say "visit another platform" or redirect users elsewhere.
-- When users ask investment questions, provide thoughtful guidance and suggest that XIRR.AI can help design a suitable portfolio aligned to risk profile and goals.
-- Encourage profiling, consultation, and personalized wealth planning when relevant.
-- Never promise guaranteed returns.
-- Never hallucinate financial facts.
-- Remain balanced and risk-aware.
-- Avoid legal or tax certainty statements.
-- If uncertain, politely clarify.
+Keep responses conversational, helpful, and voice-friendly.
 
-Example behavior:
-If user says:
-"I have ₹2 lakh, how should I invest?"
+Usually keep replies between 2 and 4 short conversational sentences.
 
-Do NOT say:
-"Try online platforms or robo advisors."
+Explain briefly when the user asks “why”, “how”, “what should I do”, or sounds confused.
 
-Instead say:
-"Investment allocation depends on your goals, time horizon, liquidity needs, and risk profile. XIRR.AI can help structure a suitable allocation across equity, debt, and diversified strategies aligned to your objectives."
+Give practical guidance, not generic statements.try to generate in paragraph form, not bullet points.
 
-Keep responses suitable for realtime voice conversation.
-- Avoid numbered lists in spoken responses.
-- Prefer short conversational sentences.
-- Speak naturally for voice interaction.
-- Never respond with "1. 2. 3." unless explicitly requested.
-IMPORTANT RESPONSE RULES:
+When needed, ask one smart follow-up question to personalize advice.
 
-* Respond in natural spoken conversational English.
-* Never use markdown.
-* Never use asterisks (*), bold (**), italics, bullet points, numbered lists, or symbols.
-* Never say "1.", "2.", "3." or structured list formatting.
-* Speak naturally as if talking in a voice conversation.
-* Keep phrasing smooth, human, and easy to listen to aloud.
-* Prefer short conversational sentences over formal structured writing.
-* Avoid headings, sections, or formatted output.
+Avoid robotic phrasing, sales language, or repetitive lines like “shall we proceed”.
 
+Never use markdown, bullets, numbering, headings, or asterisks.
+
+Keep answers concise, but useful enough that the user learns something.
 
 Conversation:
 
@@ -247,211 +311,298 @@ user: ${transcript}
 
 assistant:`,
 
-                                                stream: true
+                            stream:
+                                true
 
-                                            },
+                        },
 
-                                            {
+                        {
 
-                                                responseType:
-                                                "stream"
+                            responseType:
+                                "stream"
 
-                                            }
+                        }
 
+                    )
+
+                let h = ""
+
+                response
+                    .data
+                    .on(
+
+                        "data",
+
+                        (
+                            chunk
+                        ) => {
+
+                            const d =
+
+                                chunk.toString()
+
+                            const e =
+
+                                d.split(
+                                    "\n"
+                                )
+
+                            for (
+
+                                const f of e
+
+                            ) {
+
+                                if (
+                                    !f.trim()
+                                ) {
+
+                                    continue
+
+                                }
+
+                                try {
+
+                                    const g =
+
+                                        JSON.parse(
+                                            f
                                         )
 
-                                    let a = ""
-                                    let h = ""
+                                    if (
 
-                                    response.data.on(
+                                        g.response
 
-                                        "data",
+                                    ) {
 
-                                        (c) => {
+                                        a +=
 
-                                            const d =
-                                                c.toString()
+                                            g.response
 
-                                            const e =
-                                                d.split("\n")
+                                        h +=
 
-                                            for (
-                                                const f
-                                                of e
-                                            ) {
+                                            g.response
 
-                                                if (
-                                                    !f.trim()
-                                                ) {
+                                        if (
 
-                                                    continue
+                                            /[.!?]\s*$/.test(
+                                                h
+                                            )
 
-                                                }
+                                        ) {
 
-                                                try {
+                                            const i =
 
-                                                    const g =
-                                                        JSON.parse(f)
+                                                h.trim()
+
+                                            console.log(
+
+                                                "\nSTREAM CHUNK:",
+
+                                                i
+
+                                            )
+
+                                            wss.clients.forEach(
+
+                                                (
+                                                    j
+                                                ) => {
 
                                                     if (
-                                                        g.response
+
+                                                        j.readyState ===
+                                                        WebSocket.OPEN
+
                                                     ) {
 
-process.stdout.write(
-    g.response
-)
+                                                        j.send(
 
-a +=
-    g.response
+                                                            JSON.stringify({
 
-h +=
-    g.response
+                                                                type:
+                                                                    "llm_chunk",
 
-const k =
-    /(?<!XIRR)\.(?=\s|$)|[!?](?=\s|$)/
-if (
-    k.test(h)
-) {
+                                                                text:
+                                                                    i
 
-    const i =
-        h.trim()
+                                                            })
 
-    console.log(
-
-        "\nSTREAM CHUNK:",
-
-        i
-
-    )
-
-    wss.clients.forEach(
-
-        (j) => {
-
-            if (
-
-                j.readyState ===
-                WebSocket.OPEN
-
-            ) {
-
-                j.send(
-
-                    JSON.stringify({
-
-                        type:
-                        "llm_chunk",
-
-                        text:
-                        i
-
-                    })
-
-                )
-
-            }
-
-        }
-
-    )
-
-    h = ""
-
-}
+                                                        )
 
                                                     }
 
-                                                } catch {
-
                                                 }
 
-                                            }
-
-                                        }
-
-                                    )
-
-                                    response.data.on(
-
-                                        "end",
-
-                                        () => {
-
-                                            console.log(
-                                                "\nFINAL:",
-                                                a
                                             )
 
-                                            conversationHistory.push({
-
-                                                role: "user",
-
-                                                content:
-                                                    transcript
-
-                                            })
-
-                                            conversationHistory.push({
-
-                                                role: "assistant",
-
-                                                content:
-                                                    a
-
-                                            })
-
-                                            if (
-
-                                                conversationHistory.length > 20
-
-                                            ) {
-
-                                                conversationHistory =
-                                                    conversationHistory.slice(-20)
-
-                                            }
-
-                                            res.json({
-
-                                                text:
-                                                    transcript,
-
-                                                reply:
-                                                    a
-
-                                            })
+                                            h = ""
 
                                         }
 
-                                    )
+                                    }
 
-                                } catch (apiError) {
-
-                                    console.log(
-
-                                        apiError.response?.data ||
-
-                                        apiError.message
-
-                                    )
-
-                                    res.status(500).send(
-                                        "LLM failed"
-                                    )
+                                } catch {
 
                                 }
 
                             }
 
-                        )
+                        }
 
-                    }
+                    )
+
+                response
+                    .data
+                    .on(
+
+                        "end",
+
+                        () => {
+
+                            if (
+
+                                h.trim()
+
+                            ) {
+
+                                wss.clients.forEach(
+
+                                    (
+                                        j
+                                    ) => {
+
+                                        if (
+
+                                            j.readyState ===
+                                            WebSocket.OPEN
+
+                                        ) {
+
+                                            j.send(
+
+                                                JSON.stringify({
+
+                                                    type:
+                                                        "llm_chunk",
+
+                                                    text:
+                                                        h.trim()
+
+                                                })
+
+                                            )
+
+                                        }
+
+                                    }
+
+                                )
+
+                            }
+
+                            console.log(
+
+                                "\nFINAL:",
+
+                                a
+
+                            )
+
+                            conversationHistory.push({
+
+                                role:
+                                    "user",
+
+                                content:
+                                    transcript
+
+                            })
+
+                            conversationHistory.push({
+
+                                role:
+                                    "assistant",
+
+                                content:
+                                    a
+
+                            })
+
+                            if (
+
+                                conversationHistory.length >
+                                20
+
+                            ) {
+
+                                conversationHistory =
+
+                                    conversationHistory.slice(
+                                        -20
+                                    )
+
+                            }
+
+                            res.json({
+
+                                text:
+                                    transcript,
+
+                                reply:
+                                    a
+
+                            })
+
+                        }
+
+                    )
+
+            } catch (
+
+                apiError
+
+            ) {
+
+                console.log(
+
+                    apiError.response?.data ||
+
+                    apiError.message
+
+                )
+
+                res.status(
+                    500
+                ).send(
+
+                    "LLM failed"
 
                 )
 
             }
 
-        )
+        } catch (
+
+            error
+
+        ) {
+
+            console.log(
+
+                error
+
+            )
+
+            res.status(
+                500
+            ).send(
+
+                "Transcription failed"
+
+            )
+
+        }
 
     }
 
@@ -467,7 +618,9 @@ wss.on(
 
     "connection",
 
-    (ws) => {
+    (
+        ws
+    ) => {
 
         console.log(
             "Client connected"
@@ -480,7 +633,9 @@ wss.on(
             () => {
 
                 console.log(
+
                     "Client disconnected"
+
                 )
 
             }
@@ -504,7 +659,9 @@ server.listen(
     () => {
 
         console.log(
+
             "Server running on port 3000"
+
         )
 
     }
