@@ -7,6 +7,7 @@ const cors = require("cors")
 const axios = require("axios")
 const multer = require("multer")
 const fs = require("fs")
+const path = require("path")
 const FormData = require("form-data")
 const { exec } =
     require("child_process")
@@ -209,43 +210,64 @@ app.post(
 
             )
 
-            let transcript =
+           let transcript =
 
-                whisperResponse
-                    .data
-                    .text ||
+    whisperResponse
+        .data
+        .text ||
 
-                ""
+    ""
 
-            transcript =
+transcript =
 
-                transcript
-                    .trim()
+    transcript
+        .trim()
 
-            console.log(
+console.log(
 
-                "User:",
+    "User:",
 
-                transcript
+    transcript
 
-            )
+)
 
-            if (
+if (
 
-                !transcript
+    transcript.includes(
+        "[BLANK_AUDIO]"
+    ) ||
 
-            ) {
+    transcript.includes(
+        "[Inaudible]"
+    )
 
-                return res.json({
+) {
 
-                    text: "",
+    return res.json({
 
-                    reply: ""
+        text: "",
 
-                })
+        reply: ""
 
-            }
+    })
 
+}
+
+if (
+
+    !transcript
+
+) {
+
+    return res.json({
+
+        text: "",
+
+        reply: ""
+
+    })
+
+}
             /*
             -----------------------------------
             LLM STREAMING
@@ -626,6 +648,169 @@ wss.on(
             "Client connected"
         )
 
+        let audioBuffer = []
+        let streamingBusy = false
+
+setInterval(
+
+    async () => {
+
+        if (
+
+            streamingBusy
+
+        ) {
+
+            return
+
+        }
+
+        if (
+
+            audioBuffer.length <
+
+            8
+
+        ) {
+
+            return
+
+        }
+
+        streamingBusy = true
+
+        try {
+
+            console.log(
+
+    ">>>>>>>> STREAMING STT TICK <<<<<<<<"
+
+)
+
+const tempWebm =
+
+    path.join(
+
+        __dirname,
+
+        "stream.webm"
+
+    )
+
+fs.writeFileSync(
+
+    tempWebm,
+
+    Buffer.concat(
+
+        audioBuffer
+
+    )
+
+)
+
+console.log(
+
+    "Saved:",
+
+    tempWebm
+
+)
+        }
+
+        finally {
+
+            streamingBusy = false
+
+        }
+
+    },
+
+    2000
+
+)
+        ws.on(
+
+            "message",
+
+            (
+                data,
+                isBinary
+            ) => {
+
+                if (
+
+                    !isBinary
+
+                ) {
+
+                    return
+
+                }
+
+                audioBuffer.push(
+
+                    Buffer.from(
+                        data
+                    )
+
+                )
+
+                if (
+
+                    audioBuffer.length >
+
+                    40
+
+                ) {
+
+                    audioBuffer =
+
+                        audioBuffer.slice(
+                            -40
+                        )
+
+                }
+                if (
+
+    audioBuffer.length ===
+
+    40
+
+) {
+
+    console.log(
+
+        "Rolling buffer ready"
+
+    )
+
+}
+
+                console.log(
+
+                    "Audio chunk:",
+
+                    data.length,
+
+                    "bytes"
+
+                )
+
+                console.log(
+
+                    "Buffered:",
+
+                    audioBuffer.length,
+
+                    "chunks"
+
+                )
+
+            }
+
+        )
+
         ws.on(
 
             "close",
@@ -645,7 +830,6 @@ wss.on(
     }
 
 )
-
 /*
 -----------------------------------
 START SERVER

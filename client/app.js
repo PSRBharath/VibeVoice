@@ -26,12 +26,17 @@ let speechStartTime =
 0
 let ttsChain =
 Promise.resolve()
+let responseGeneration = 0
+
 
 const x =
     new WebSocket(
         "ws://localhost:3000"
     )
-    x.onmessage =
+    x.binaryType =
+    "arraybuffer"
+
+x.onmessage =
 (a) => {
 
     try {
@@ -43,39 +48,64 @@ const x =
 
         if (
 
-    b.type ===
-    "llm_chunk"
+            b.type ===
+            "llm_chunk"
 
-) {
+        ) {
 
-    console.log(
+            const d =
 
-        "LIVE CHUNK:",
+                responseGeneration
 
-        b.text
+            console.log(
 
-    )
+                "LIVE CHUNK:",
 
-    let c =
-        b.text
+                b.text
 
-    c =
-    c.replaceAll(
+            )
 
-        "XIRR.AI",
+            let c =
+                b.text
 
-        "XIRR AI"
+            c =
+            c.replaceAll(
 
-    )
+                "XIRR.AI",
 
-    ttsChain =
-ttsChain.then(
+                "XIRR AI"
 
-    () => speak(c)
+            )
 
-)
+            ttsChain =
+            ttsChain.then(
 
-}
+                async () => {
+
+                    if (
+
+                        d !==
+                        responseGeneration
+
+                    ) {
+
+                        console.log(
+
+                            "Dropped old chunk"
+
+                        )
+
+                        return
+
+                    }
+
+                    await speak(c)
+
+                }
+
+            )
+
+        }
 
     }
 
@@ -129,18 +159,7 @@ async function setupVAD() {
 
 //            if (isSpeaking) {
 
-//             if (
-
-//     Date.now() -
-//     speechStartTime <
-
-//     1500
-
-// ) {
-
-//     return
-
-// }
+           
 
 //     clearTimeout(
 //         interruptTimeout
@@ -181,6 +200,11 @@ async function setupVAD() {
 //         null
 
 //         playbackGeneration++
+
+// responseGeneration++
+
+// ttsChain =
+// Promise.resolve()
 
 //     }, 700)
 
@@ -318,11 +342,36 @@ async function startRecording() {
 
     audioChunks = []
 
-    mediaRecorder.ondataavailable = (event) => {
+    mediaRecorder.ondataavailable =
+(event) => {
 
-        audioChunks.push(event.data)
+    audioChunks.push(
+        event.data
+    )
+
+    if (
+
+        x.readyState ===
+        WebSocket.OPEN
+
+    ) {
+
+        event.data
+            .arrayBuffer()
+
+            .then(
+
+                (a) => {
+
+                    x.send(a)
+
+                }
+
+            )
 
     }
+
+}
 
     mediaRecorder.onstop = async () => {
 
@@ -445,6 +494,36 @@ console.log(
         const transcript =
             data.text
 
+            if (
+
+    transcript ===
+    "[BLANK_AUDIO]"
+
+    ||
+
+    transcript ===
+    "[ Inaudible ]"
+
+) {
+
+    console.log(
+        "Ignoring blank audio"
+    )
+
+    isRecording =
+    false
+
+    isProcessing =
+    false
+
+    state =
+    "IDLE"
+
+    startRecording()
+
+    return
+
+}
         if (!transcript.trim()) {
 
             console.log(
@@ -524,6 +603,8 @@ TTS
 */
 async function speak(text) {
 
+    const myGeneration =
+responseGeneration
     let playbackStarted =
         false
 
@@ -550,7 +631,8 @@ async function speak(text) {
             // fix abbreviations
             .replace(/U\.S\./g, "US")
             .replace(/U\.K\./g, "UK")
-            .replace(/XIRR\.AI/g, "XIRR AI")
+            .replace(/XIRR\.AI/g, "XIRR A,I")
+.replace(/\bAI\b/g, "A,I")
 
             // collapse spaces
             .replace(/\s+/g, " ")
@@ -686,6 +768,16 @@ async function speak(text) {
 
                         )
 
+                        if (
+
+    myGeneration !==
+    responseGeneration
+
+) {
+
+    return
+
+}
                         a[c] =
                             g.audio_url
 
@@ -694,7 +786,16 @@ async function speak(text) {
                             a[b]
 
                         ) {
+                            if (
 
+    myGeneration !==
+    responseGeneration
+
+) {
+
+    return
+
+}
                             audioQueue.push(
 
                                 a[b]
@@ -936,26 +1037,36 @@ Date.now()
         () => {
 
             console.log(
-    `[PLAY END]`,
-    {
-        at:
-        new Date()
-            .toLocaleTimeString(),
-        ts:
-        Date.now(),
-        queue:
-        audioQueue.length
-    }
-)
+                `[PLAY END]`,
+                {
+                    at:
+                    new Date()
+                        .toLocaleTimeString(),
+                    ts:
+                    Date.now(),
+                    queue:
+                    audioQueue.length
+                }
+            )
 
             resolve()
 
         }
 
-        
+        // currentAudio.onpause =
+        // () => {
+
+        //     console.log(
+        //         "[PLAY INTERRUPTED]"
+        //     )
+
+        //     resolve()
+
+        // }
 
     }
 )
+
 
         }
 
@@ -988,5 +1099,6 @@ Date.now()
 }, 1200)
 
     }
+   
 
 }
